@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Exec(python3)",
+      "Exec(command)"
+    ]
+  }
+}

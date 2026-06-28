@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Trip Planner — Deep Agent Chat</title>
+
+  <!-- htmx 2.0.10 + SSE extension (verified working in the spike) -->
+  <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/htmx-ext-sse@2.2.4"></script>
+
+  <!-- Tailwind + DaisyUI -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+
+  <style>
+    html, body { height: 100%; }
+    body { overflow: hidden; }
+    .app { display: grid; grid-template-columns: 300px 1fr 380px; height: 100vh; }
+    .col { display: flex; flex-direction: column; min-height: 0; }
+    .col-left  { border-right: 1px solid hsl(var(--bc) / 0.15); padding: 16px; gap: 14px; }
+    .col-right { border-left: 1px solid hsl(var(--bc) / 0.15); padding: 16px; gap: 14px; overflow-y: auto; }
+    .panel-title { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; opacity: .6; margin-bottom: 6px; }
+    #messages { flex: 1; overflow-y: auto; padding: 20px 24px; }
+    .composer { padding: 14px 16px; border-top: 1px solid hsl(var(--bc) / 0.15); }
+    .ai-text { white-space: pre-wrap; }
+    .thinking { animation: blink 1s steps(2) infinite; opacity: .6; }
+    @keyframes blink { 0%,50% { opacity: .7; } 50.01%,100% { opacity: 0; } }
+
+    .panel-box { background: hsl(var(--b1)); border: 1px solid hsl(var(--bc) / 0.12); border-radius: 10px; padding: 12px; font-size: 12.5px; }
+    .panel-box .row { display: flex; justify-content: space-between; padding: 2px 0; }
+    .panel-box .k { opacity: .55; }
+    .panel-box .k.mt { margin-top: 8px; display: block; }
+    .panel-box .v { font-variant-numeric: tabular-nums; }
+    .panel-box .sp { white-space: pre-wrap; opacity: .85; max-height: 140px; overflow: auto; margin-top: 4px; font-size: 11.5px; }
+    .todo { display: flex; gap: 8px; padding: 3px 0; }
+    .todo .mark { width: 1em; }
+    .todo-completed { opacity: .55; text-decoration: line-through; }
+    .file summary { cursor: pointer; font-family: ui-monospace, monospace; font-size: 11.5px; }
+    .file pre { white-space: pre-wrap; font-size: 11.5px; margin-top: 6px; max-height: 260px; overflow: auto; }
+    .empty { opacity: .4; font-style: italic; }
+  </style>
+</head>
+<body hx-ext="sse">
+  <div class="app">
+    <!-- LEFT: controls -->
+    <aside class="col col-left">
+      <div>
+        <div class="panel-title">System prompt</div>
+        <textarea id="system-prompt" name="system_prompt"
+                  class="textarea textarea-bordered w-full" rows="10"
+                  spellcheck="false">{{ system_prompt }}</textarea>
+        <p class="text-xs opacity-50 mt-1">Editable mid-conversation — applied on every send.</p>
+      </div>
+      <a href="/" class="btn btn-sm btn-outline">+ New thread</a>
+      <div>
+        <div class="panel-title">Thread</div>
+        <div class="join w-full">
+          <input id="thread-id" class="input input-bordered input-sm join-item w-full text-xs"
+                 value="{{ thread_id }}" readonly />
+          <button class="btn btn-sm join-item"
+                  onclick="navigator.clipboard.writeText(document.getElementById('thread-id').value)">copy</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- CENTER: chat -->
+    <main class="col">
+      <div id="messages">
+        {% for m in history %}
+          {% if m.role == "user" %}
+            <div class="chat chat-end"><div class="chat-bubble chat-bubble-primary">{{ m.content }}</div></div>
+          {% else %}
+            <div class="chat chat-start"><div class="chat-bubble"><span class="ai-text">{{ m.content }}</span></div></div>
+          {% endif %}
+        {% endfor %}
+      </div>
+      <form class="composer" hx-post="/chat/{{ thread_id }}/send"
+            hx-target="#messages" hx-swap="beforeend"
+            hx-include="#system-prompt"
+            hx-on::after-request="this.reset()">
+        <div class="join w-full">
+          <input name="message" required autocomplete="off" autofocus
+                 class="input input-bordered join-item w-full"
+                 placeholder="Plan a 3-day trip to Kyoto…" />
+          <button type="submit" class="btn btn-primary join-item">Send</button>
+        </div>
+      </form>
+    </main>
+
+    <!-- RIGHT: agent internals -->
+    <aside class="col col-right">
+      <div class="panel-title">Agent run</div>
+      {% include "_panels.html" %}
+    </aside>
+  </div>
+
+  <script>
+    const scrollMessages = () => {
+      const m = document.getElementById('messages');
+      if (m) m.scrollTop = m.scrollHeight;
+    };
+    // Keep the latest reply just above the composer as tokens stream in.
+    document.body.addEventListener('htmx:sseBeforeMessage', scrollMessages);
+    document.body.addEventListener('htmx:afterSwap', scrollMessages);
+    // Drop the blinking cursor when a stream closes.
+    document.body.addEventListener('htmx:sseClose', () => {
+      document.querySelectorAll('.thinking').forEach(t => t.remove());
+      scrollMessages();
+    });
+    scrollMessages();
+  </script>
+</body>
+</html>

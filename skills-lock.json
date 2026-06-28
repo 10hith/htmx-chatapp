@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "htmx": {
+      "source": "damusix/skills",
+      "sourceType": "github",
+      "skillPath": "htmx/SKILL.md",
+      "computedHash": "9af352dab2c7a876a5e8ee6bf920b225c47f84d93196acc3a7b129018200d8b2"
+    }
+  }
+}

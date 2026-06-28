@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Virtual environments (managed by `uv sync`)
+.venv/
+venv/
+
+# Secrets / local env — keep the template
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Planning / generated artifacts
+.plans/
+graphify-out/
+
+# NOTE: uv.lock is intentionally committed (reproducible installs for an app).

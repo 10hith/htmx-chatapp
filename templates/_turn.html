@@ -1,0 +1,13 @@
+{# Returned by POST /chat/{id}/send: the user's bubble + a fresh assistant bubble
+   that opens its OWN SSE connection. Token events stream into .ai-text; the hidden
+   state_update sink receives OOB payloads that patch the right panel. #}
+<div class="chat chat-end">
+  <div class="chat-bubble chat-bubble-primary">{{ message }}</div>
+</div>
+<div class="chat chat-start" sse-connect="/chat/{{ thread_id }}/stream?gen={{ gen }}" sse-close="done">
+  <div class="chat-bubble">
+    <span class="ai-text" sse-swap="token" hx-swap="beforeend"></span>
+    <span class="thinking">▌</span>
+  </div>
+  <span sse-swap="state_update" hidden></span>
+</div>

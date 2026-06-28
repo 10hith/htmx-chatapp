@@ -1,0 +1,39 @@
+{# Right-panel contents. Rendered inline on page load (oob unset) and over SSE
+   with oob=True so each `state_update` event patches the panels out-of-band. #}
+<div id="panel-state" class="panel-box"{% if oob %} hx-swap-oob="innerHTML"{% endif %}>
+  <div class="row"><span class="k">messages</span><span class="v">{{ msg_count }}</span></div>
+  <div class="row"><span class="k">node</span><span class="v">{{ node or "—" }}</span></div>
+  <div class="k mt">system prompt</div>
+  <pre class="sp">{{ system_prompt }}</pre>
+</div>
+
+<div id="panel-todos" class="panel-box"{% if oob %} hx-swap-oob="innerHTML"{% endif %}>
+  {% if todos %}
+    {% for t in todos %}
+      {% if t is mapping %}
+        {% set status = t.get("status", "") %}
+        <div class="todo todo-{{ status }}">
+          <span class="mark">{% if status == "completed" %}✓{% elif status == "in_progress" %}◐{% else %}▢{% endif %}</span>
+          <span>{{ t.get("content", t) }}</span>
+        </div>
+      {% else %}
+        <div class="todo"><span class="mark">▢</span><span>{{ t }}</span></div>
+      {% endif %}
+    {% endfor %}
+  {% else %}
+    <span class="empty">no todos yet</span>
+  {% endif %}
+</div>
+
+<div id="panel-files" class="panel-box"{% if oob %} hx-swap-oob="innerHTML"{% endif %}>
+  {% if files %}
+    {% for path, content in files.items() %}
+      <details class="file"{% if loop.first %} open{% endif %}>
+        <summary>{{ path }}</summary>
+        <pre>{{ content }}</pre>
+      </details>
+    {% endfor %}
+  {% else %}
+    <span class="empty">no files yet</span>
+  {% endif %}
+</div>
