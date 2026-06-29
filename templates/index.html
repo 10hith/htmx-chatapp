@@ -24,6 +24,7 @@
     #messages { flex: 1; overflow-y: auto; padding: 20px 24px; }
     .composer { padding: 14px 16px; border-top: 1px solid hsl(var(--bc) / 0.15); }
     .ai-text { white-space: pre-wrap; }
+    .ai-card:not(:empty) { display: block; margin-top: .5rem; }
     .thinking { animation: blink 1s steps(2) infinite; opacity: .6; }
     @keyframes blink { 0%,50% { opacity: .7; } 50.01%,100% { opacity: 0; } }
 
@@ -71,7 +72,10 @@
           {% if m.role == "user" %}
             <div class="chat chat-end"><div class="chat-bubble chat-bubble-primary">{{ m.content }}</div></div>
           {% else %}
-            <div class="chat chat-start"><div class="chat-bubble"><span class="ai-text">{{ m.content }}</span></div></div>
+            <div class="chat chat-start"><div class="chat-bubble">
+              <span class="ai-text">{{ m.prose }}</span>
+              {% if m.card_html %}<div class="ai-card">{{ m.card_html | safe }}</div>{% endif %}
+            </div></div>
           {% endif %}
         {% endfor %}
       </div>
@@ -101,7 +105,13 @@
       if (m) m.scrollTop = m.scrollHeight;
     };
     // Keep the latest reply just above the composer as tokens stream in.
-    document.body.addEventListener('htmx:sseBeforeMessage', scrollMessages);
+    document.body.addEventListener('htmx:sseBeforeMessage', (e) => {
+      if (e.detail.type === 'render' || e.detail.elt?.classList.contains('ai-card')) {
+        const bubble = e.detail.elt.closest('.chat-bubble');
+        bubble?.querySelector('.thinking')?.remove();
+      }
+      scrollMessages();
+    });
     document.body.addEventListener('htmx:afterSwap', scrollMessages);
     // Drop the blinking cursor when a stream closes.
     document.body.addEventListener('htmx:sseClose', () => {

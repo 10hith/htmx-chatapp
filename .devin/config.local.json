@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "Exec(python3)",
-      "Exec(command)"
+      "Exec(command)",
+      "Exec(uv add)",
+      "Exec(uv run)",
+      "Exec(git status)",
+      "Exec(git diff)",
+      "Exec(uv lock)"
     ]
   }
 }

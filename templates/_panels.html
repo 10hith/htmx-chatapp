@@ -30,7 +30,8 @@
     {% for path, content in files.items() %}
       <details class="file"{% if loop.first %} open{% endif %}>
         <summary>{{ path }}</summary>
-        <pre>{{ content }}</pre>
+        {% if path.endswith('.html') %}<div class="file-html">{{ content | safe }}</div>
+        {% else %}<pre>{{ content }}</pre>{% endif %}
       </details>
     {% endfor %}
   {% else %}

@@ -22,6 +22,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from deepagent import DEFAULT_SYSTEM_PROMPT, file_text
 from graph import build_graph
+from render import SPINNER_HTML, sanitize_html, split_message
 
 app = FastAPI(title="Trip Planner Deep-Agent Chat")
 templates = Jinja2Templates(directory="templates")
@@ -45,11 +46,21 @@ def _chunk_text(content) -> str:
     return str(content)
 
 
+def _panel_files(values: dict) -> dict[str, str]:
+    out = {}
+    for k, v in (values.get("files") or {}).items():
+        if k.startswith("/skills/"):
+            continue
+        text = file_text(v)
+        out[k] = sanitize_html(text) if k.endswith(".html") else text
+    return out
+
+
 async def _panel_context(thread_id: str, node: str) -> dict:
     """Authoritative panel data from the committed checkpoint."""
     snap = await graph.aget_state(_cfg(thread_id))
     values = snap.values if snap else {}
-    files = {k: file_text(v) for k, v in (values.get("files") or {}).items() if not k.startswith("/skills/")}
+    files = _panel_files(values)
     return {
         "msg_count": len(values.get("messages", []) or []),
         "system_prompt": values.get("system_prompt") or DEFAULT_SYSTEM_PROMPT,
@@ -72,12 +83,16 @@ async def chat_page(request: Request, thread_id: str):
     from the LangGraph checkpoint — no client-side fetch needed on load."""
     snap = await graph.aget_state(_cfg(thread_id))
     values = snap.values if snap else {}
-    history = [
-        {"role": "user" if m.type == "human" else "ai", "content": m.content}
-        for m in values.get("messages", []) or []
-        if m.type in ("human", "ai") and m.content
-    ]
-    files = {k: file_text(v) for k, v in (values.get("files") or {}).items() if not k.startswith("/skills/")}
+    history = []
+    for m in values.get("messages", []) or []:
+        if m.type == "human" and m.content:
+            history.append({"role": "user", "content": _chunk_text(m.content)})
+        elif m.type == "ai" and m.content:
+            prose, raw = split_message(_chunk_text(m.content))
+            history.append(
+                {"role": "ai", "prose": prose, "card_html": sanitize_html(raw) if raw else ""}
+            )
+    files = _panel_files(values)
     return templates.TemplateResponse(
         request,
         "index.html",
@@ -132,6 +147,7 @@ async def stream(thread_id: str, gen: str):
             "messages": [HumanMessage(pending["message"])],
             "system_prompt": pending["system_prompt"] or DEFAULT_SYSTEM_PROMPT,
         }
+        acc, emitted, fence_found = "", 0, False
         async for namespace, mode, payload in graph.astream(
             inp, _cfg(thread_id), stream_mode=["messages", "updates"], subgraphs=True
         ):
@@ -140,7 +156,26 @@ async def stream(thread_id: str, gen: str):
                 if isinstance(chunk, AIMessage):
                     text = _chunk_text(chunk.content)
                     if text:
-                        yield {"event": "token", "data": escape(text)}
+                        acc += text
+                        if not fence_found:
+                            idx = acc.find("```")
+                            if idx == -1:
+                                safe = len(acc) - 2
+                                if safe > emitted:
+                                    yield {
+                                        "event": "token",
+                                        "data": escape(acc[emitted:safe]),
+                                    }
+                                    emitted = safe
+                            else:
+                                if idx > emitted:
+                                    yield {
+                                        "event": "token",
+                                        "data": escape(acc[emitted:idx].rstrip("\n")),
+                                    }
+                                    emitted = idx
+                                fence_found = True
+                                yield {"event": "render", "data": SPINNER_HTML}
             elif mode == "updates" and not namespace:
                 # An OUTER node completed -> refresh the right panel.
                 for node_name in payload:
@@ -148,6 +183,13 @@ async def stream(thread_id: str, gen: str):
                     html = templates.env.get_template("_panels.html").render(ctx)
                     yield {"event": "state_update", "data": html}
 
+        if not fence_found:
+            if emitted < len(acc):
+                yield {"event": "token", "data": escape(acc[emitted:])}
+        else:
+            _, raw = split_message(acc)
+            card = sanitize_html(raw) if raw else ""
+            yield {"event": "render", "data": card or "<span></span>"}
         yield {"event": "done", "data": "ok"}
 
     return EventSourceResponse(events())
